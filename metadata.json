@@ -1,0 +1,6 @@
+{
+  "name": "Nutri Count",
+  "description": "Plataforma de gestión nutricional inteligente para nutricionistas y pacientes.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
