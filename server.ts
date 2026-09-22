@@ -3,15 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// Cargar variables de entorno ANTES de importar cualquier modulo que las lea a nivel top-level
+// (los imports de ES modules se evaluan en orden, asi que esto tiene que ir primero).
+import 'dotenv/config';
+
 import express from 'express';
 import path from 'path';
-import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/service/db';
 import { UserRole } from './src/types';
-
-// Load environmental variables
-dotenv.config();
 
 async function startServer() {
   const app = express();
@@ -37,7 +37,8 @@ async function startServer() {
       if (!user) {
         return res.status(401).json({ error: 'Credenciales inválidas' });
       }
-      res.json({ user });
+      const { hash_contrasena, ...safeUser } = user;
+      res.json({ user: safeUser });
     } catch (e: any) {
       res.status(500).json({ error: e.message || 'Error de servidor' });
     }
@@ -46,15 +47,19 @@ async function startServer() {
   // Registrar cuenta (nutricionista o paciente)
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const { nombre, apellido, email, password, rol, dni, fecha_nacimiento, genero } = req.body;
-      if (!nombre || !apellido || !email || !password || !rol || !dni || !fecha_nacimiento || !genero) {
-        return res.status(400).json({ error: 'Faltan campos obligatorios para el registro (DNI, Fecha de nacimiento y Género son requeridos)' });
+      const { nombre, apellido, email, password, rol, nombre_usuario, dni, fecha_nacimiento, genero } = req.body;
+      if (!nombre || !apellido || !email || !password || !rol || !nombre_usuario || !dni || !fecha_nacimiento || !genero) {
+        return res.status(400).json({ error: 'Faltan campos obligatorios para el registro (Nombre de usuario, DNI, Fecha de nacimiento y Género son requeridos)' });
       }
       if (rol !== UserRole.NUTRICIONISTA && rol !== UserRole.PACIENTE) {
         return res.status(400).json({ error: 'El rol especificado es inválido' });
       }
-      const user = await db.register(nombre, apellido, email, password, rol, genero, dni, fecha_nacimiento);
-      res.json({ user });
+      const result = await db.register(nombre, apellido, email, password, rol, nombre_usuario, genero, dni, fecha_nacimiento);
+      if (!result.success || !result.user) {
+        return res.status(409).json({ error: result.error });
+      }
+      const { hash_contrasena, ...safeUser } = result.user;
+      res.json({ user: safeUser });
     } catch (e: any) {
       res.status(500).json({ error: e.message || 'Error de servidor' });
     }
@@ -67,8 +72,8 @@ async function startServer() {
       if (!nutricionistaId || typeof nutricionistaId !== 'string') {
         return res.status(400).json({ error: 'Falta ID de nutricionista' });
       }
-      const patients = await db.getPatients(nutricionistaId);
-      res.json({ patients });
+      const patients = await db.getPatients(Number(nutricionistaId));
+      res.json({ patients: patients.map(({ hash_contrasena, ...p }) => p) });
     } catch (e: any) {
       res.status(500).json({ error: e.message || 'Error' });
     }
@@ -82,10 +87,11 @@ async function startServer() {
         return res.status(400).json({ error: 'Faltan parámetros requeridos' });
       }
       const result = await db.linkPatient(nutricionistaId, email.trim());
-      if (!result.success) {
+      if (!result.success || !result.patient) {
         return res.status(400).json({ error: result.error });
       }
-      res.json({ patient: result.patient });
+      const { hash_contrasena, ...safePatient } = result.patient;
+      res.json({ patient: safePatient });
     } catch (e: any) {
       res.status(500).json({ error: e.message || 'Error' });
     }
@@ -118,7 +124,7 @@ async function startServer() {
       if (!patientId || typeof patientId !== 'string') {
         return res.status(400).json({ error: 'Falta ID de paciente' });
       }
-      const plan = await db.getPatientPlan(patientId);
+      const plan = await db.getPatientPlan(Number(patientId));
       res.json({ plan });
     } catch (e: any) {
       res.status(500).json({ error: e.message || 'Error' });
@@ -132,8 +138,11 @@ async function startServer() {
       if (!patientId || !nutricionistaId || !planDetails) {
         return res.status(400).json({ error: 'Faltan parámetros del plan' });
       }
-      const plan = await db.savePatientPlan(patientId, nutricionistaId, planDetails);
-      res.json({ plan });
+      const result = await db.savePatientPlan(patientId, nutricionistaId, planDetails);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+      res.json({ plan: result.plan });
     } catch (e: any) {
       res.status(500).json({ error: e.message || 'Error' });
     }
@@ -146,7 +155,7 @@ async function startServer() {
       if (!patientId || !date || typeof patientId !== 'string' || typeof date !== 'string') {
         return res.status(400).json({ error: 'ID de paciente y fecha "YYYY-MM-DD" son requeridos' });
       }
-      const ingestas = await db.getPatientIngestas(patientId, date);
+      const ingestas = await db.getPatientIngestas(Number(patientId), date);
       res.json({ ingestas });
     } catch (e: any) {
       res.status(500).json({ error: e.message || 'Error' });
@@ -177,7 +186,7 @@ async function startServer() {
   app.delete('/api/ingestas/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await db.deleteIngesta(id);
+      const success = await db.deleteIngesta(Number(id));
       if (!success) {
         return res.status(404).json({ error: 'Registro de ingesta no encontrado' });
       }
@@ -200,19 +209,19 @@ async function startServer() {
   // Dar de alta un nuevo alimento
   app.post('/api/alimentos', async (req, res) => {
     try {
-      const { id_alimento, nombre_alimento, calorias, proteinas, carbohidratos, grasas, medida_cantidad, medida_unidad } = req.body;
+      const { nombre_alimento, calorias, proteinas, carbohidratos, grasas, medida_cantidad, medida_unidad, origen } = req.body;
       if (!nombre_alimento || calorias === undefined || proteinas === undefined || carbohidratos === undefined || grasas === undefined) {
         return res.status(400).json({ error: 'Faltan campos sobre el alimento' });
       }
       const aliment = await db.addAlimento({
-        id_alimento,
         nombre_alimento,
         calorias: Number(calorias),
         proteinas: Number(proteinas),
         carbohidratos: Number(carbohidratos),
         grasas: Number(grasas),
         medida_cantidad: Number(medida_cantidad || 100),
-        medida_unidad: medida_unidad || 'g'
+        medida_unidad: medida_unidad || 'g',
+        origen: origen || 'Local'
       });
       res.json({ alimento: aliment });
     } catch (e: any) {
@@ -251,12 +260,8 @@ async function startServer() {
       const carbs_100g = Number((nutriments['carbohydrates_100g'] || 0).toFixed(1));
       const grasas_100g = Number((nutriments['fat_100g'] || 0).toFixed(1));
 
-      // First check if this nourishment already exists in local DB to avoid duplicating, otherwise return it
-      const localAlimentos = await db.getAlimentos();
-      const existing = localAlimentos.find(a => 
-        a.nombre_alimento.toLowerCase() === nombre.toLowerCase() && 
-        a.calorias === calorias_100g
-      );
+      // First check if this exact barcode already exists in local DB to avoid duplicating, otherwise return it
+      const existing = await db.getAlimentoByBarcode(code);
 
       if (existing) {
         return res.json({ alimento: existing, isNew: false });
@@ -270,7 +275,9 @@ async function startServer() {
         carbohidratos: carbs_100g,
         grasas: grasas_100g,
         medida_cantidad: 100,
-        medida_unidad: 'g'
+        medida_unidad: 'g',
+        codigo_barras: code,
+        origen: 'OpenFoodFacts'
       });
 
       res.json({ alimento: newAlimento, isNew: true });

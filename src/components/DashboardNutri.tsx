@@ -284,7 +284,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
     }
   };
 
-  const fetchPatientSemaphore = async (patId: string) => {
+  const fetchPatientSemaphore = async (patId: number) => {
     try {
       // Get plan
       const planRes = await fetch(`/api/plans?patientId=${patId}`);

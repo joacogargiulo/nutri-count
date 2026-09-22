@@ -21,6 +21,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   // Register states
   const [regNombre, setRegNombre] = useState('');
   const [regApellido, setRegApellido] = useState('');
+  const [regNombreUsuario, setRegNombreUsuario] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regRol, setRegRol] = useState<UserRole>(UserRole.PACIENTE);
@@ -64,8 +65,8 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regNombre || !regApellido || !regEmail || !regPassword || !regDni || !regFechaNacimiento || !regGenero) {
-      setError('Por favor complete todos los campos obligatorios (DNI, Fecha de nacimiento y Género son requeridos)');
+    if (!regNombre || !regApellido || !regNombreUsuario || !regEmail || !regPassword || !regDni || !regFechaNacimiento || !regGenero) {
+      setError('Por favor complete todos los campos obligatorios (Nombre de usuario, DNI, Fecha de nacimiento y Género son requeridos)');
       return;
     }
 
@@ -84,6 +85,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         body: JSON.stringify({
           nombre: regNombre,
           apellido: regApellido,
+          nombre_usuario: regNombreUsuario,
           email: regEmail.toLowerCase(),
           password: regPassword,
           rol: regRol,
@@ -270,6 +272,26 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     placeholder="Posse"
                     className="block w-full px-3 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm transition-all text-white placeholder-neutral-600"
                     id="input-reg-apellido"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
+                  Nombre de Usuario
+                </label>
+                <div className="relative rounded-xl shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-neutral-600" />
+                  </div>
+                  <input
+                    type="text"
+                    value={regNombreUsuario}
+                    onChange={(e) => setRegNombreUsuario(e.target.value)}
+                    required
+                    placeholder="agustin.posse"
+                    className="block w-full pl-10 pr-3 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm transition-all text-white placeholder-neutral-600"
+                    id="input-reg-nombre-usuario"
                   />
                 </div>
               </div>

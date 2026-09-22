@@ -137,7 +137,7 @@ interface SavedRecipe {
   id: string;
   name: string;
   ingredients: {
-    id_alimento: string;
+    id_alimento: number | string; // string = todavia no persistido en Alimentos (placeholder local)
     nombre_alimento: string;
     cantidad: number;
     calorias: number;
@@ -567,7 +567,7 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
     }
   };
 
-  const handleDeleteIngesta = async (id: string) => {
+  const handleDeleteIngesta = async (id: number) => {
     try {
       const response = await fetch(`/api/ingestas/${id}`, {
         method: 'DELETE'
@@ -799,23 +799,31 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
   const handleLogRecipe = async (recipe: SavedRecipe, targetMeal: TipoComida) => {
     setIsLoggingMultiple(true);
     try {
+      let persistedAnyNewFood = false;
+
       for (const ingred of recipe.ingredients) {
-        if (ingred && ingred.id_alimento && typeof ingred.id_alimento === 'string' && ingred.id_alimento.startsWith('custom_')) {
-          // Register the custom food dynamically on the backend so foreign key works
-          await fetch('/api/alimentos', {
+        if (ingred && typeof ingred.id_alimento === 'string') {
+          // Todavia no existe en Alimentos (placeholder local) - crearlo ahora y quedarse con el id real.
+          // No se muestra en el catalogo compartido (origen: 'Personalizado').
+          const res = await fetch('/api/alimentos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              id_alimento: ingred.id_alimento,
               nombre_alimento: ingred.nombre_alimento,
               calorias: ingred.calorias,
               proteinas: ingred.proteinas,
               carbohidratos: ingred.carbohidratos,
               grasas: ingred.grasas,
               medida_cantidad: ingred.medida_cantidad || 100,
-              medida_unidad: ingred.medida_unidad || 'g'
+              medida_unidad: ingred.medida_unidad || 'g',
+              origen: 'Personalizado'
             })
           });
+          const data = await res.json();
+          if (res.ok && data.alimento) {
+            ingred.id_alimento = data.alimento.id_alimento;
+            persistedAnyNewFood = true;
+          }
         }
 
         await fetch('/api/ingestas', {
@@ -831,6 +839,19 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
           })
         });
       }
+
+      // Si se persistio algun alimento nuevo, guardar el id real para no volver a crearlo la proxima vez
+      if (persistedAnyNewFood) {
+        const recipeKey = `nutricount_recipes_${user.id_usuario}`;
+        const savedRecipes: SavedRecipe[] = JSON.parse(localStorage.getItem(recipeKey) || '[]');
+        const idx = savedRecipes.findIndex(r => r.id === recipe.id);
+        if (idx !== -1) {
+          savedRecipes[idx] = recipe;
+          localStorage.setItem(recipeKey, JSON.stringify(savedRecipes));
+          setRecipes(savedRecipes);
+        }
+      }
+
       fetchDailyIngestas();
     } catch (e) {
       console.error(e);
