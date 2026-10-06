@@ -26,7 +26,6 @@ CREATE TABLE Personas (
     nombre VARCHAR(100) NOT NULL,
     apellido VARCHAR(100) NOT NULL,
     genero VARCHAR(50),
-    dni VARCHAR(20),
     fecha_nacimiento DATE
 );
 
@@ -36,8 +35,8 @@ CREATE TABLE Usuarios (
     nombre_usuario VARCHAR(100) UNIQUE NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     hash_contrasena VARCHAR(255) NOT NULL,
-    id_persona INTEGER REFERENCES Personas(id_persona) ON DELETE CASCADE,
-    fecha_creacion TIMESTAMPTZ DEFAULT now()
+    id_persona INTEGER NOT NULL UNIQUE REFERENCES Personas(id_persona) ON DELETE CASCADE, -- relacion 1 a 1
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- 4. Relacion Rol Usuario (Muchos a Muchos, PK compuesta)
@@ -50,10 +49,10 @@ CREATE TABLE Relacion_Rol_Usuario (
 -- 5. Relacion Nutricionista Paciente
 CREATE TABLE Relacion_Nutricionista_Paciente (
     id_relacion SERIAL PRIMARY KEY,
-    id_nutricionista INTEGER REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
-    id_paciente INTEGER REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
-    fecha_vinculacion DATE DEFAULT CURRENT_DATE,
-    activo BOOLEAN DEFAULT TRUE,
+    id_nutricionista INTEGER NOT NULL REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
+    id_paciente INTEGER NOT NULL REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
+    fecha_vinculacion DATE NOT NULL DEFAULT CURRENT_DATE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
     fecha_desvinculacion DATE
 );
 
@@ -65,7 +64,7 @@ CREATE TABLE Alimentos (
     proteinas DECIMAL(10,2) NOT NULL DEFAULT 0,
     carbohidratos DECIMAL(10,2) NOT NULL DEFAULT 0,
     grasas DECIMAL(10,2) NOT NULL DEFAULT 0,
-    medida_cantidad FLOAT NOT NULL DEFAULT 100,
+    medida_cantidad NUMERIC(8,2) NOT NULL DEFAULT 100,
     medida_unidad VARCHAR(20) NOT NULL DEFAULT 'g',
     codigo_barras VARCHAR(50) UNIQUE,
     origen VARCHAR(50)
@@ -103,32 +102,32 @@ INSERT INTO Tipos_Comida (id_tipo_comida, nombre_tipo) VALUES
 CREATE TABLE Planes_Nutricionales (
     id_plan SERIAL PRIMARY KEY,
     id_relacion INTEGER NOT NULL REFERENCES Relacion_Nutricionista_Paciente(id_relacion) ON DELETE CASCADE,
-    calorias_objetivo FLOAT NOT NULL,
-    proteinas_objetivo FLOAT NOT NULL,
-    carbohidratos_objetivo FLOAT NOT NULL,
-    grasas_objetivo FLOAT NOT NULL,
+    calorias_objetivo NUMERIC(8,2) NOT NULL,
+    proteinas_objetivo NUMERIC(8,2) NOT NULL,
+    carbohidratos_objetivo NUMERIC(8,2) NOT NULL,
+    grasas_objetivo NUMERIC(8,2) NOT NULL,
     fecha_inicio DATE NOT NULL,
     fecha_fin DATE NOT NULL,
-    id_estado INTEGER REFERENCES Estados_Plan(id_estado) DEFAULT 1,
-    fecha_creacion TIMESTAMPTZ DEFAULT now()
+    id_estado INTEGER NOT NULL REFERENCES Estados_Plan(id_estado) DEFAULT 1,
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- 10. Tabla de Registros de Ingesta (Ingestas)
 CREATE TABLE Registros_Ingesta (
     id_registro SERIAL PRIMARY KEY,
-    id_paciente INTEGER REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
+    id_paciente INTEGER NOT NULL REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
     id_plan INTEGER REFERENCES Planes_Nutricionales(id_plan) ON DELETE SET NULL,
-    id_alimento INTEGER REFERENCES Alimentos(id_alimento) ON DELETE CASCADE,
-    cantidad FLOAT NOT NULL, -- en gramos o unidad correspondiente
+    id_alimento INTEGER NOT NULL REFERENCES Alimentos(id_alimento) ON DELETE CASCADE,
+    cantidad NUMERIC(8,2) NOT NULL, -- en gramos o unidad correspondiente
     id_tipo_comida INTEGER NOT NULL REFERENCES Tipos_Comida(id_tipo_comida) ON DELETE RESTRICT,
-    fecha_hora_consumo TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    fecha_creacion TIMESTAMPTZ DEFAULT now()
+    fecha_hora_consumo TIMESTAMPTZ NOT NULL DEFAULT now(),
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- 11. Tabla de Mediciones (historial de peso/altura del paciente)
 CREATE TABLE Mediciones (
     id_medicion SERIAL PRIMARY KEY,
-    id_paciente INTEGER REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
+    id_paciente INTEGER NOT NULL REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
     peso_kg DECIMAL(5,2),
     altura_cm DECIMAL(5,2),
     fecha_medicion DATE NOT NULL DEFAULT CURRENT_DATE

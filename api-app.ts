@@ -43,14 +43,14 @@ app.post('/api/auth/login', async (req, res) => {
 // Registrar cuenta (nutricionista o paciente)
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { nombre, apellido, email, password, rol, nombre_usuario, dni, fecha_nacimiento, genero } = req.body;
-    if (!nombre || !apellido || !email || !password || !rol || !nombre_usuario || !dni || !fecha_nacimiento || !genero) {
-      return res.status(400).json({ error: 'Faltan campos obligatorios para el registro (Nombre de usuario, DNI, Fecha de nacimiento y Género son requeridos)' });
+    const { nombre, apellido, email, password, rol, nombre_usuario, fecha_nacimiento, genero } = req.body;
+    if (!nombre || !apellido || !email || !password || !rol || !nombre_usuario || !fecha_nacimiento || !genero) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios para el registro (Nombre de usuario, Fecha de nacimiento y Género son requeridos)' });
     }
     if (rol !== UserRole.NUTRICIONISTA && rol !== UserRole.PACIENTE) {
       return res.status(400).json({ error: 'El rol especificado es inválido' });
     }
-    const result = await db.register(nombre, apellido, email, password, rol, nombre_usuario, genero, dni, fecha_nacimiento);
+    const result = await db.register(nombre, apellido, email, password, rol, nombre_usuario, genero, fecha_nacimiento);
     if (!result.success || !result.user) {
       return res.status(409).json({ error: result.error });
     }

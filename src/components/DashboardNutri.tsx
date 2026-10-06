@@ -734,7 +734,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
               <h1 className="text-2xl font-bold tracking-tight text-white mt-2">
                 Tratamiento Nutricional: {selectedPatient.persona?.nombre} {selectedPatient.persona?.apellido}
               </h1>
-              <p className="text-xs text-neutral-500 mt-1">DNI del paciente: {selectedPatient.persona?.dni || 'No cargado'} | Correo: {selectedPatient.email}</p>
+              <p className="text-xs text-neutral-500 mt-1">Correo: {selectedPatient.email}</p>
             </div>
 
             <div className="flex items-center justify-end">

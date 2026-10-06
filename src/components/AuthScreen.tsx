@@ -25,7 +25,6 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regRol, setRegRol] = useState<UserRole>(UserRole.PACIENTE);
-  const [regDni, setRegDni] = useState('');
   const [regFechaNacimiento, setRegFechaNacimiento] = useState('');
   const [regGenero, setRegGenero] = useState('Masculino');
 
@@ -65,8 +64,8 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regNombre || !regApellido || !regNombreUsuario || !regEmail || !regPassword || !regDni || !regFechaNacimiento || !regGenero) {
-      setError('Por favor complete todos los campos obligatorios (Nombre de usuario, DNI, Fecha de nacimiento y Género son requeridos)');
+    if (!regNombre || !regApellido || !regNombreUsuario || !regEmail || !regPassword || !regFechaNacimiento || !regGenero) {
+      setError('Por favor complete todos los campos obligatorios (Nombre de usuario, Fecha de nacimiento y Género son requeridos)');
       return;
     }
 
@@ -89,7 +88,6 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           email: regEmail.toLowerCase(),
           password: regPassword,
           rol: regRol,
-          dni: regDni,
           fecha_nacimiento: regFechaNacimiento,
           genero: regGenero
         })
@@ -336,34 +334,18 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
-                    DNI
-                  </label>
-                  <input
-                    type="text"
-                    value={regDni}
-                    onChange={(e) => setRegDni(e.target.value)}
-                    required
-                    placeholder="Ej. 44555666"
-                    className="block w-full px-3 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm transition-all text-white placeholder-neutral-600"
-                    id="input-reg-dni"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
-                    Fecha de Nacimiento
-                  </label>
-                  <input
-                    type="date"
-                    value={regFechaNacimiento}
-                    onChange={(e) => setRegFechaNacimiento(e.target.value)}
-                    required
-                    className="block w-full px-3 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm transition-all text-white placeholder-neutral-600"
-                    id="input-reg-nacimiento"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
+                  Fecha de Nacimiento
+                </label>
+                <input
+                  type="date"
+                  value={regFechaNacimiento}
+                  onChange={(e) => setRegFechaNacimiento(e.target.value)}
+                  required
+                  className="block w-full px-3 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm transition-all text-white placeholder-neutral-600"
+                  id="input-reg-nacimiento"
+                />
               </div>
 
               <div>

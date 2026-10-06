@@ -54,11 +54,11 @@ interface MemoryDB {
 }
 
 const mockPersonas: Persona[] = [
-  { id_persona: 1, nombre: 'Bernardo', apellido: 'Gonella', genero: 'Masculino', dni: '44555666', fecha_nacimiento: '1985-05-15' },
-  { id_persona: 2, nombre: 'Agustin', apellido: 'Posse', genero: 'Masculino', dni: '45111222', fecha_nacimiento: '1998-10-20' },
-  { id_persona: 3, nombre: 'Joaquin', apellido: 'Gargiulo', genero: 'Masculino', dni: '45222333', fecha_nacimiento: '2000-02-12' },
-  { id_persona: 4, nombre: 'Marcos', apellido: 'Parra', genero: 'Masculino', dni: '45333444', fecha_nacimiento: '1999-07-28' },
-  { id_persona: 5, nombre: 'Matias', apellido: 'Garzon', genero: 'Masculino', dni: '45444555', fecha_nacimiento: '2001-11-04' },
+  { id_persona: 1, nombre: 'Bernardo', apellido: 'Gonella', genero: 'Masculino', fecha_nacimiento: '1985-05-15' },
+  { id_persona: 2, nombre: 'Agustin', apellido: 'Posse', genero: 'Masculino', fecha_nacimiento: '1998-10-20' },
+  { id_persona: 3, nombre: 'Joaquin', apellido: 'Gargiulo', genero: 'Masculino', fecha_nacimiento: '2000-02-12' },
+  { id_persona: 4, nombre: 'Marcos', apellido: 'Parra', genero: 'Masculino', fecha_nacimiento: '1999-07-28' },
+  { id_persona: 5, nombre: 'Matias', apellido: 'Garzon', genero: 'Masculino', fecha_nacimiento: '2001-11-04' },
 ];
 
 const mockUsuarios: Usuario[] = [
@@ -334,7 +334,7 @@ export const db = {
         .from('usuarios')
         .select(`
           id_usuario, nombre_usuario, email, hash_contrasena, id_persona,
-          personas (nombre, apellido, genero, dni, fecha_nacimiento),
+          personas (nombre, apellido, genero, fecha_nacimiento),
           relacion_rol_usuario (id_rol, roles (nombre_rol))
         `)
         .eq('email', email)
@@ -359,7 +359,6 @@ export const db = {
           nombre: Array.isArray(p) ? p[0]?.nombre : p.nombre,
           apellido: Array.isArray(p) ? p[0]?.apellido : p.apellido,
           genero: Array.isArray(p) ? p[0]?.genero : p.genero,
-          dni: Array.isArray(p) ? p[0]?.dni : p.dni,
           fecha_nacimiento: Array.isArray(p) ? p[0]?.fecha_nacimiento : p.fecha_nacimiento
         } : undefined,
         rol: rolName as UserRole
@@ -387,7 +386,6 @@ export const db = {
     role: UserRole,
     nombre_usuario: string,
     genero?: string,
-    dni?: string,
     fecha_nacimiento?: string
   ): Promise<{ success: boolean; error?: string; user?: Usuario }> {
     const hash_contrasena = await bcrypt.hash(pass, 10);
@@ -407,7 +405,6 @@ export const db = {
         nombre,
         apellido,
         genero: genero || 'No especificado',
-        dni: dni || null,
         fecha_nacimiento: fecha_nacimiento || null
       }]).select().single();
 
@@ -461,7 +458,6 @@ export const db = {
       nombre,
       apellido,
       genero: genero || 'No especificado',
-      dni: dni || '',
       fecha_nacimiento: fecha_nacimiento || ''
     };
 
@@ -487,7 +483,7 @@ export const db = {
           id_paciente,
           usuarios!id_paciente (
             id_usuario, nombre_usuario, email, id_persona,
-            personas (nombre, apellido, genero, dni, fecha_nacimiento)
+            personas (nombre, apellido, genero, fecha_nacimiento)
           )
         `)
         .eq('id_nutricionista', nutricionistaId)
@@ -509,7 +505,6 @@ export const db = {
             nombre: p.nombre,
             apellido: p.apellido,
             genero: p.genero,
-            dni: p.dni,
             fecha_nacimiento: p.fecha_nacimiento
           } : undefined
         };
@@ -536,7 +531,7 @@ export const db = {
         .from('usuarios')
         .select(`
           id_usuario, nombre_usuario, email, id_persona,
-          personas (nombre, apellido, genero, dni, fecha_nacimiento)
+          personas (nombre, apellido, genero, fecha_nacimiento)
         `)
         .eq('email', email)
         .single();
@@ -587,7 +582,6 @@ export const db = {
             nombre: Array.isArray(p) ? p[0]?.nombre : p.nombre,
             apellido: Array.isArray(p) ? p[0]?.apellido : p.apellido,
             genero: Array.isArray(p) ? p[0]?.genero : p.genero,
-            dni: Array.isArray(p) ? p[0]?.dni : p.dni,
             fecha_nacimiento: Array.isArray(p) ? p[0]?.fecha_nacimiento : p.fecha_nacimiento
           } : undefined
         }

@@ -20,7 +20,6 @@ export interface Persona {
   nombre: string;
   apellido: string;
   genero?: string;
-  dni?: string;
   fecha_nacimiento?: string;
 }
 
