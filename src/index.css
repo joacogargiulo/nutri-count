@@ -4,5 +4,49 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Tonos intermedios usados en los componentes que Tailwind 4 no trae por defecto
+     (sin esto las clases como bg-neutral-850 o text-rose-450 no generan ningun estilo). */
+  --color-neutral-350: color-mix(in oklab, var(--color-neutral-300) 50%, var(--color-neutral-400));
+  --color-neutral-450: color-mix(in oklab, var(--color-neutral-400) 50%, var(--color-neutral-500));
+  --color-neutral-550: color-mix(in oklab, var(--color-neutral-500) 50%, var(--color-neutral-600));
+  --color-neutral-650: color-mix(in oklab, var(--color-neutral-600) 50%, var(--color-neutral-700));
+  --color-neutral-750: color-mix(in oklab, var(--color-neutral-700) 50%, var(--color-neutral-800));
+  --color-neutral-805: color-mix(in oklab, var(--color-neutral-800) 90%, var(--color-neutral-900));
+  --color-neutral-850: color-mix(in oklab, var(--color-neutral-800) 50%, var(--color-neutral-900));
+  --color-neutral-955: color-mix(in oklab, var(--color-neutral-950) 70%, black);
+
+  --color-emerald-350: color-mix(in oklab, var(--color-emerald-300) 50%, var(--color-emerald-400));
+  --color-emerald-450: color-mix(in oklab, var(--color-emerald-400) 50%, var(--color-emerald-500));
+  --color-emerald-455: var(--color-emerald-450);
+  --color-emerald-955: color-mix(in oklab, var(--color-emerald-950) 70%, black);
+
+  --color-rose-450: color-mix(in oklab, var(--color-rose-400) 50%, var(--color-rose-500));
+  --color-rose-455: var(--color-rose-450);
+  --color-rose-550: color-mix(in oklab, var(--color-rose-500) 50%, var(--color-rose-600));
+  --color-rose-955: color-mix(in oklab, var(--color-rose-950) 70%, black);
+
+  --color-orange-450: color-mix(in oklab, var(--color-orange-400) 50%, var(--color-orange-500));
+  --color-orange-455: var(--color-orange-450);
+  --color-orange-550: color-mix(in oklab, var(--color-orange-500) 50%, var(--color-orange-600));
+  --color-orange-955: color-mix(in oklab, var(--color-orange-950) 70%, black);
+
+  --color-amber-955: color-mix(in oklab, var(--color-amber-950) 70%, black);
+  --color-lime-450: color-mix(in oklab, var(--color-lime-400) 50%, var(--color-lime-500));
+  --color-lime-455: var(--color-lime-450);
+  --color-lime-955: color-mix(in oklab, var(--color-lime-950) 70%, black);
+  --color-sky-450: color-mix(in oklab, var(--color-sky-400) 50%, var(--color-sky-500));
+  --color-sky-955: color-mix(in oklab, var(--color-sky-950) 70%, black);
+  --color-red-955: color-mix(in oklab, var(--color-red-950) 70%, black);
+}
+
+/* animate-fade / animate-fadeIn se usan en los componentes pero no estaban definidos */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade,
+.animate-fadeIn {
+  animation: fade-in 0.25s ease-out both;
 }
 
