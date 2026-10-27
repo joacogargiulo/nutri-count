@@ -8,7 +8,7 @@ import { Activity, ShieldCheck, User, Mail, Lock, LogIn, UserPlus } from 'lucide
 import { Usuario, UserRole } from '../types';
 
 interface AuthScreenProps {
-  onLoginSuccess: (user: Usuario) => void;
+  onLoginSuccess: (user: Usuario, token: string) => void;
 }
 
 export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
@@ -46,7 +46,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail.toLowerCase(), password: loginPassword })
+        body: JSON.stringify({ email: loginEmail.trim().toLowerCase(), password: loginPassword })
       });
 
       const data = await response.json();
@@ -54,7 +54,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         throw new Error(data.error || 'Credenciales incorrectas');
       }
 
-      onLoginSuccess(data.user);
+      onLoginSuccess(data.user, data.token);
     } catch (err: any) {
       setError(err.message || 'Error al conectar');
     } finally {
@@ -69,8 +69,18 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       return;
     }
 
-    if (!regEmail.includes('@') || regEmail.length < 5) {
-      setError('Por favor ingrese un correo electrónico válido');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(regEmail.trim())) {
+      setError('Por favor ingrese un correo electrónico válido (ej: nombre@dominio.com)');
+      return;
+    }
+
+    if (regPassword.length < 8 || !/[A-Za-z]/.test(regPassword) || !/\d/.test(regPassword)) {
+      setError('La contraseña debe tener al menos 8 caracteres e incluir letras y números');
+      return;
+    }
+
+    if (!/^[A-Za-z0-9._-]{3,30}$/.test(regNombreUsuario.trim())) {
+      setError('El nombre de usuario debe tener 3 a 30 caracteres (letras, números, punto, guion o guion bajo)');
       return;
     }
 
@@ -85,7 +95,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           nombre: regNombre,
           apellido: regApellido,
           nombre_usuario: regNombreUsuario,
-          email: regEmail.toLowerCase(),
+          email: regEmail.trim().toLowerCase(),
           password: regPassword,
           rol: regRol,
           fecha_nacimiento: regFechaNacimiento,
@@ -100,7 +110,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
       setSuccessMsg('¡Cuenta registrada exitosamente! Iniciando sesión...');
       setTimeout(() => {
-        onLoginSuccess(data.user);
+        onLoginSuccess(data.user, data.token);
       }, 1500);
     } catch (err: any) {
       setError(err.message || 'Error al registrar');
@@ -109,24 +119,6 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     }
   };
 
-  const handleQuickLogin = (email: string, pass: string) => {
-    setLoginEmail(email);
-    setLoginPassword(pass);
-    // Auto-login trigger
-    setLoading(true);
-    setError(null);
-    fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pass })
-    })
-      .then(res => res.json().then(data => {
-        if (!res.ok) throw new Error(data.error);
-        onLoginSuccess(data.user);
-      }))
-      .catch(err => setError(err.message || 'Error'))
-      .finally(() => setLoading(false));
-  };
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -327,7 +319,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     required
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 8 caracteres, con letras y números"
                     className="block w-full pl-10 pr-3 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm transition-all text-white placeholder-neutral-600"
                     id="input-reg-pass"
                   />

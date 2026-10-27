@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch, ingestasUrl, todayLocal } from '../api';
 import { 
   Users, UserPlus, FileText, Calendar, Plus, 
-  ChevronRight, AlertCircle, ArrowLeft, Check, CheckCircle, HelpCircle, Activity 
+  ChevronRight, ArrowLeft, Check, HelpCircle 
 } from 'lucide-react';
-import { Usuario, PlanNutricional, RegistroIngesta, UserRole } from '../types';
+import { Usuario, PlanNutricional, RegistroIngesta } from '../types';
 
 // Helper functions for week carousel and compliance coloring
 export const getMondayOfDate = (d: Date): Date => {
@@ -149,7 +150,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
 
   // Patient detail monitoring states
   const [activePlan, setActivePlan] = useState<PlanNutricional | null>(null);
-  const [monitoredDate, setMonitoredDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [monitoredDate, setMonitoredDate] = useState<string>(todayLocal());
   const [ingestas, setIngestas] = useState<RegistroIngesta[]>([]);
   const [stats, setStats] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
 
@@ -223,7 +224,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
 
       const results = await Promise.all(
         datesToFetch.map(async (dStr) => {
-          const response = await fetch(`/api/ingestas?patientId=${selectedPatient.id_usuario}&date=${dStr}`);
+          const response = await apiFetch(ingestasUrl(selectedPatient.id_usuario, dStr));
           if (response.ok) {
             const data = await response.json();
             const records: RegistroIngesta[] = data.ingestas || [];
@@ -270,7 +271,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
 
   const fetchPatients = async () => {
     try {
-      const response = await fetch(`/api/patients?nutricionistaId=${user.id_usuario}`);
+      const response = await apiFetch(`/api/patients?nutricionistaId=${user.id_usuario}`);
       if (response.ok) {
         const data = await response.json();
         setPatients(data.patients);
@@ -287,7 +288,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
   const fetchPatientSemaphore = async (patId: number) => {
     try {
       // Get plan
-      const planRes = await fetch(`/api/plans?patientId=${patId}`);
+      const planRes = await apiFetch(`/api/plans?patientId=${patId}`);
       let goal = 2000;
       let planRecord: PlanNutricional | null = null;
       if (planRes.ok) {
@@ -299,8 +300,8 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
       }
 
       // Get today ingestas
-      const todayStr = new Date().toISOString().split('T')[0];
-      const ingRes = await fetch(`/api/ingestas?patientId=${patId}&date=${todayStr}`);
+      const todayStr = todayLocal();
+      const ingRes = await apiFetch(ingestasUrl(patId, todayStr));
       let totalCal = 0;
       if (ingRes.ok) {
         const ingData = await ingRes.json();
@@ -351,7 +352,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
   const fetchPatientDetails = async (patId: string) => {
     try {
       // Load plan
-      const planRes = await fetch(`/api/plans?patientId=${patId}`);
+      const planRes = await apiFetch(`/api/plans?patientId=${patId}`);
       if (planRes.ok) {
         const data = await planRes.json();
         setActivePlan(data.plan);
@@ -364,7 +365,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
       }
 
       // Load ingestas
-      const ingRes = await fetch(`/api/ingestas?patientId=${patId}&date=${monitoredDate}`);
+      const ingRes = await apiFetch(ingestasUrl(patId, monitoredDate));
       if (ingRes.ok) {
         const data = await ingRes.json();
         const records: RegistroIngesta[] = data.ingestas || [];
@@ -404,7 +405,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
     if (!linkEmail) return;
 
     try {
-      const response = await fetch('/api/patients/link', {
+      const response = await apiFetch('/api/patients/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -431,7 +432,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
 
   const handleUnlinkPatient = async (patientId: string) => {
     try {
-      const response = await fetch('/api/patients/unlink', {
+      const response = await apiFetch('/api/patients/unlink', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -504,7 +505,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
     setShowOverlapWarning(false);
 
     try {
-      const response = await fetch('/api/plans', {
+      const response = await apiFetch('/api/plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -526,7 +527,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
         throw new Error(data.error || 'Error al guardar el plan');
       }
 
-      setPlanSuccess('¡Plan Nutricional guardado y notificado al paciente exitosamente!');
+      setPlanSuccess('Plan nutricional guardado. El paciente lo verá en su panel la próxima vez que lo abra.');
       setActivePlan(data.plan);
       fetchPatientSemaphore(selectedPatient.id_usuario);
     } catch (err: any) {
@@ -592,18 +593,13 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
                     <div className="p-3.5 bg-rose-955/30 border border-rose-900/40 text-rose-200 rounded-xl text-xs" id="link-error-alert">
                       <p className="font-semibold">{linkError}</p>
                       {showInvitationOption && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLinkSuccess('¡Invitación por correo enviada exitosamente!');
-                            setLinkEmail('');
-                            setLinkError(null);
-                            setShowInvitationOption(false);
-                          }}
+                        <a
+                          href={`mailto:${encodeURIComponent(linkEmail.trim())}?subject=${encodeURIComponent('Invitación a Nutri Count')}&body=${encodeURIComponent(`Hola! Te invito a registrarte en Nutri Count para que pueda hacer el seguimiento de tu plan nutricional. Una vez creada tu cuenta con este correo, avisame y te vinculo a mi cartera de pacientes.\n\n${window.location.origin}`)}`}
+                          onClick={() => setShowInvitationOption(false)}
                           className="mt-2 block w-full py-2 bg-emerald-500 hover:bg-emerald-400 font-bold text-neutral-950 text-xs rounded-lg text-center transition-all"
                         >
-                          Enviar invitación de correo
-                        </button>
+                          Invitar por correo (abre tu cliente de mail)
+                        </a>
                       )}
                     </div>
                   )}

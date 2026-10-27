@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch, ingestasUrl, consumoISO, todayLocal } from '../api';
 import { Html5Qrcode } from 'html5-qrcode';
 import { 
-  Calendar, Search, Camera, Plus, Trash2, Check, 
-  Sparkles, AlertCircle, ShoppingBag, ArrowRight, Activity, HelpCircle,
-  Coffee, Sun, Moon, Apple, HelpCircle as CupInfo, Save, X, RotateCcw, List, Utensils
+  Calendar, Search, Camera, Plus, Trash2, 
+  Sparkles, AlertCircle, ArrowRight,
+  Coffee, Sun, Moon, Apple, HelpCircle as CupInfo, Save, X, List
 } from 'lucide-react';
 import { Usuario, PlanNutricional, RegistroIngesta, Alimento, TipoComida } from '../types';
 
@@ -178,7 +179,7 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
   // Modals for unlink (baja de nutricionista)
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
   const [unlinkStatusMessage, setUnlinkStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(todayLocal());
   const [ingestas, setIngestas] = useState<RegistroIngesta[]>([]);
   
   // Totals for today
@@ -229,14 +230,16 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
   const [userFats, setUserFats] = useState<number>(65);
   const [hasCustomTargets, setHasCustomTargets] = useState<boolean>(false);
   const [showAdjustTargetsModal, setShowAdjustTargetsModal] = useState<boolean>(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const isPlanExpired = activePlan ? new Date(activePlan.fecha_fin) < new Date() : true;
+  const isPlanExpired = activePlan ? activePlan.fecha_fin < todayLocal() : true;
   const isPlanValid = activePlan && !isPlanExpired;
 
-  const currentCaloriesTarget = hasCustomTargets ? userCalories : (isPlanValid && activePlan ? activePlan.calorias_objetivo : userCalories);
-  const currentProteinsTarget = hasCustomTargets ? userProteins : (isPlanValid && activePlan ? activePlan.proteinas_objetivo : userProteins);
-  const currentCarbsTarget = hasCustomTargets ? userCarbs : (isPlanValid && activePlan ? activePlan.carbohidratos_objetivo : userCarbs);
-  const currentFatsTarget = hasCustomTargets ? userFats : (isPlanValid && activePlan ? activePlan.grasas_objetivo : userFats);
+  const manualTargetsActive = hasCustomTargets && !isPlanValid;
+  const currentCaloriesTarget = manualTargetsActive ? userCalories : (isPlanValid && activePlan ? activePlan.calorias_objetivo : userCalories);
+  const currentProteinsTarget = manualTargetsActive ? userProteins : (isPlanValid && activePlan ? activePlan.proteinas_objetivo : userProteins);
+  const currentCarbsTarget = manualTargetsActive ? userCarbs : (isPlanValid && activePlan ? activePlan.carbohidratos_objetivo : userCarbs);
+  const currentFatsTarget = manualTargetsActive ? userFats : (isPlanValid && activePlan ? activePlan.grasas_objetivo : userFats);
 
   // Weekly status track for calendar compliance
   const [weeklyStatus, setWeeklyStatus] = useState<Record<string, { calories: number; target: number }>>({});
@@ -310,7 +313,7 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
 
       const results = await Promise.all(
         datesToFetch.map(async (dStr) => {
-          const response = await fetch(`/api/ingestas?patientId=${user.id_usuario}&date=${dStr}`);
+          const response = await apiFetch(ingestasUrl(user.id_usuario, dStr));
           if (response.ok) {
             const data = await response.json();
             const records: RegistroIngesta[] = data.ingestas || [];
@@ -477,7 +480,7 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
 
   const fetchActivePlan = async () => {
     try {
-      const response = await fetch(`/api/plans?patientId=${user.id_usuario}`);
+      const response = await apiFetch(`/api/plans?patientId=${user.id_usuario}`);
       if (response.ok) {
         const data = await response.json();
         setActivePlan(data.plan);
@@ -489,7 +492,7 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
 
   const fetchAlimentos = async () => {
     try {
-      const response = await fetch('/api/alimentos');
+      const response = await apiFetch('/api/alimentos');
       if (response.ok) {
         const data = await response.json();
         setAlimentos(data.alimentos || []);
@@ -501,7 +504,7 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
 
   const fetchDailyIngestas = async () => {
     try {
-      const response = await fetch(`/api/ingestas?patientId=${user.id_usuario}&date=${selectedDate}`);
+      const response = await apiFetch(ingestasUrl(user.id_usuario, selectedDate));
       if (response.ok) {
         const data = await response.json();
         const records: RegistroIngesta[] = data.ingestas || [];
@@ -541,17 +544,16 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
     // Calculate final actual grams to log
     const finalGrams = unitMode === 'g' ? Number(cantidadGramos) : Math.round(unitQty * unitWeight);
 
+    setActionError(null);
     try {
-      const response = await fetch('/api/ingestas', {
+      const response = await apiFetch('/api/ingestas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          patientId: user.id_usuario,
-          id_plan: activePlan?.id_plan || null,
           id_alimento: alimentoToAdd.id_alimento,
           cantidad: finalGrams,
           tipo_comida: mealType,
-          fecha_hora_consumo: `${selectedDate}T${new Date().toISOString().split('T')[1]}`
+          fecha_hora_consumo: consumoISO(selectedDate)
         })
       });
 
@@ -561,15 +563,19 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
         setShowScanner(false);
         setSearchQuery('');
         fetchDailyIngestas();
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        setActionError(errData.error || 'No se pudo registrar la comida');
       }
     } catch (err) {
       console.error(err);
+      setActionError('No se pudo conectar con el servidor');
     }
   };
 
   const handleDeleteIngesta = async (id: number) => {
     try {
-      const response = await fetch(`/api/ingestas/${id}`, {
+      const response = await apiFetch(`/api/ingestas/${id}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -583,7 +589,7 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
   const handleUnlinkNutricionista = async () => {
     if (!activePlan) return;
     try {
-      const response = await fetch('/api/patients/unlink', {
+      const response = await apiFetch('/api/patients/unlink', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -642,8 +648,8 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
     setScannedAlimento(null);
 
     try {
-      const response = await fetch(`/api/barcode/${cleanBar}`);
-      if (response.status === 444) {
+      const response = await apiFetch(`/api/barcode/${cleanBar}`);
+      if (response.status === 404) {
         throw new Error('Producto no identificado en Open Food Facts.');
       }
       if (!response.ok) {
@@ -770,26 +776,30 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
 
       // 2. Post all staged ingredients sequentially
       for (const item of draftIngredients) {
-        await fetch('/api/ingestas', {
+        const logRes = await apiFetch('/api/ingestas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            patientId: user.id_usuario,
-            id_plan: activePlan?.id_plan || null,
             id_alimento: item.alimento.id_alimento,
             cantidad: item.finalGrams,
             tipo_comida: mealType,
-            fecha_hora_consumo: `${selectedDate}T${new Date().toISOString().split('T')[1]}`
+            fecha_hora_consumo: consumoISO(selectedDate)
           })
         });
+        if (!logRes.ok) {
+          const errData = await logRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'No se pudo registrar un ingrediente');
+        }
       }
 
       // 3. Reset draft state and refresh charts
       setDraftIngredients([]);
       setRecipeName('');
       fetchDailyIngestas();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setActionError(err.message || 'No se pudo registrar la comida');
+      fetchDailyIngestas();
     } finally {
       setIsLoggingMultiple(false);
     }
@@ -805,7 +815,7 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
         if (ingred && typeof ingred.id_alimento === 'string') {
           // Todavia no existe en Alimentos (placeholder local) - crearlo ahora y quedarse con el id real.
           // No se muestra en el catalogo compartido (origen: 'Personalizado').
-          const res = await fetch('/api/alimentos', {
+          const res = await apiFetch('/api/alimentos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -826,18 +836,20 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
           }
         }
 
-        await fetch('/api/ingestas', {
+        const logRes = await apiFetch('/api/ingestas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            patientId: user.id_usuario,
-            id_plan: activePlan?.id_plan || null,
             id_alimento: ingred.id_alimento,
             cantidad: ingred.cantidad,
             tipo_comida: targetMeal,
-            fecha_hora_consumo: `${selectedDate}T${new Date().toISOString().split('T')[1]}`
+            fecha_hora_consumo: consumoISO(selectedDate)
           })
         });
+        if (!logRes.ok) {
+          const errData = await logRes.json().catch(() => ({}));
+          throw new Error(`${ingred.nombre_alimento}: ${errData.error || 'no se pudo registrar'}`);
+        }
       }
 
       // Si se persistio algun alimento nuevo, guardar el id real para no volver a crearlo la proxima vez
@@ -853,8 +865,10 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
       }
 
       fetchDailyIngestas();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setActionError(e.message || 'No se pudo registrar el plato');
+      fetchDailyIngestas();
     } finally {
       setIsLoggingMultiple(false);
     }
@@ -958,6 +972,14 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="paciente-dashboard">
+      {actionError && (
+        <div role="alert" className="mb-4 p-3.5 bg-red-950/40 border border-red-900/50 text-red-200 rounded-xl text-sm font-medium flex items-start justify-between gap-3">
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="text-red-300 hover:text-white" aria-label="Cerrar aviso">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       
       {/* Top Welcome Title */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 border-b border-neutral-900 pb-5 mb-8">
@@ -967,17 +989,19 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
             <span className="text-xs bg-emerald-950 text-emerald-450 border border-emerald-900/50 py-0.5 px-2 rounded-lg font-normal">Paciente Ejecutivo</span>
           </h1>
           <p className="text-xs text-neutral-550 mt-1 flex items-center flex-wrap gap-2">
-            {activePlan 
+            {isPlanValid 
               ? `Plan nutricional activo: ${targetCalories} kcal diarias prescritas para ti.`
               : 'Tratamiento actual: Sin metas de nutricionista asignadas.'
             }
+            {!isPlanValid && (
             <button 
               onClick={() => setShowAdjustTargetsModal(true)}
               className="text-[11px] font-bold text-emerald-400 hover:text-emerald-350 underline inline-flex items-center space-x-1 cursor-pointer ml-1"
             >
               <span>⚙️ {hasCustomTargets ? 'Modificar mis objetivos manuales' : 'Autogestionar mis objetivos'}</span>
             </button>
-            {hasCustomTargets && (
+            )}
+            {!isPlanValid && hasCustomTargets && (
               <button
                 onClick={() => {
                   try {
@@ -1249,7 +1273,6 @@ export default function DashboardPaciente({ user }: DashboardPacienteProps) {
 
             {MEALS_LIST.map((meal) => {
               const mealMeta = getMealMeta(meal)!;
-              const MealIcon = mealMeta.icon;
               const items = groupedMeals[meal] || [];
               const sub = getMealSubtotals(items);
 

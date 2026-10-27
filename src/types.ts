@@ -100,7 +100,9 @@ export interface PlanNutricional {
 }
 
 // Registros_Ingesta
-export type TipoComida = 'Desayuno' | 'Colación' | 'Almuerzo' | 'Merienda' | 'Cena';
+// El orden coincide con los ids de la tabla Tipos_Comida (1..5)
+export const TIPOS_COMIDA = ['Desayuno', 'Colación', 'Almuerzo', 'Merienda', 'Cena'] as const;
+export type TipoComida = typeof TIPOS_COMIDA[number];
 
 export interface RegistroIngesta {
   id_registro: number;

@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Usuario } from './types';
+import { USER_KEY, TOKEN_KEY } from './api';
 import Navbar from './components/Navbar';
 import AuthScreen from './components/AuthScreen';
 import DashboardNutri from './components/DashboardNutri';
@@ -15,24 +16,28 @@ export default function App() {
 
   // Check if session can be restored from client localStorage (simple state persistence)
   useEffect(() => {
-    const cached = localStorage.getItem('nutricount_user');
-    if (cached) {
+    const cached = localStorage.getItem(USER_KEY);
+    if (cached && localStorage.getItem(TOKEN_KEY)) {
       try {
         setUser(JSON.parse(cached));
       } catch (e) {
-        localStorage.removeItem('nutricount_user');
+        localStorage.removeItem(USER_KEY);
       }
+    } else {
+      localStorage.removeItem(USER_KEY);
     }
   }, []);
 
-  const handleLoginSuccess = (authenticatedUser: Usuario) => {
+  const handleLoginSuccess = (authenticatedUser: Usuario, token: string) => {
     setUser(authenticatedUser);
-    localStorage.setItem('nutricount_user', JSON.stringify(authenticatedUser));
+    localStorage.setItem(USER_KEY, JSON.stringify(authenticatedUser));
+    localStorage.setItem(TOKEN_KEY, token);
   };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('nutricount_user');
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   };
 
   return (
