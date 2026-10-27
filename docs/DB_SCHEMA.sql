@@ -39,6 +39,10 @@ CREATE TABLE Usuarios (
     fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Unicidad sin distinguir mayusculas: respalda a nivel BD la validacion de la API (evita carreras entre dos registros simultaneos)
+CREATE UNIQUE INDEX uq_usuarios_email_ci ON Usuarios (lower(email));
+CREATE UNIQUE INDEX uq_usuarios_nombre_usuario_ci ON Usuarios (lower(nombre_usuario));
+
 -- 4. Relacion Rol Usuario (Muchos a Muchos, PK compuesta)
 CREATE TABLE Relacion_Rol_Usuario (
     id_usuario INTEGER REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
@@ -53,8 +57,12 @@ CREATE TABLE Relacion_Nutricionista_Paciente (
     id_paciente INTEGER NOT NULL REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
     fecha_vinculacion DATE NOT NULL DEFAULT CURRENT_DATE,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
-    fecha_desvinculacion DATE
+    fecha_desvinculacion DATE,
+    CONSTRAINT ck_relacion_distintos CHECK (id_nutricionista <> id_paciente)
 );
+
+-- Un nutricionista no puede tener dos vinculos ACTIVOS con el mismo paciente (los inactivos quedan como historial)
+CREATE UNIQUE INDEX uq_relacion_activa ON Relacion_Nutricionista_Paciente (id_nutricionista, id_paciente) WHERE activo;
 
 -- 6. Tabla de Alimentos
 CREATE TABLE Alimentos (
@@ -67,7 +75,9 @@ CREATE TABLE Alimentos (
     medida_cantidad NUMERIC(8,2) NOT NULL DEFAULT 100,
     medida_unidad VARCHAR(20) NOT NULL DEFAULT 'g',
     codigo_barras VARCHAR(50) UNIQUE,
-    origen VARCHAR(50)
+    origen VARCHAR(50),
+    CONSTRAINT ck_alimentos_valores CHECK (calorias >= 0 AND proteinas >= 0 AND carbohidratos >= 0 AND grasas >= 0),
+    CONSTRAINT ck_alimentos_medida CHECK (medida_cantidad > 0)
 );
 
 -- 7. Tabla de Estados de Plan
@@ -109,7 +119,9 @@ CREATE TABLE Planes_Nutricionales (
     fecha_inicio DATE NOT NULL,
     fecha_fin DATE NOT NULL,
     id_estado INTEGER NOT NULL REFERENCES Estados_Plan(id_estado) DEFAULT 1,
-    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT ck_planes_objetivos CHECK (calorias_objetivo > 0 AND proteinas_objetivo > 0 AND carbohidratos_objetivo > 0 AND grasas_objetivo > 0),
+    CONSTRAINT ck_planes_fechas CHECK (fecha_fin >= fecha_inicio)
 );
 
 -- 10. Tabla de Registros de Ingesta (Ingestas)
@@ -117,8 +129,9 @@ CREATE TABLE Registros_Ingesta (
     id_registro SERIAL PRIMARY KEY,
     id_paciente INTEGER NOT NULL REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
     id_plan INTEGER REFERENCES Planes_Nutricionales(id_plan) ON DELETE SET NULL,
-    id_alimento INTEGER NOT NULL REFERENCES Alimentos(id_alimento) ON DELETE CASCADE,
-    cantidad NUMERIC(8,2) NOT NULL, -- en gramos o unidad correspondiente
+    -- RESTRICT: no se puede borrar un alimento que ya fue consumido (preserva el historial del paciente)
+    id_alimento INTEGER NOT NULL REFERENCES Alimentos(id_alimento) ON DELETE RESTRICT,
+    cantidad NUMERIC(8,2) NOT NULL CHECK (cantidad > 0), -- en gramos o unidad correspondiente
     id_tipo_comida INTEGER NOT NULL REFERENCES Tipos_Comida(id_tipo_comida) ON DELETE RESTRICT,
     fecha_hora_consumo TIMESTAMPTZ NOT NULL DEFAULT now(),
     fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -134,8 +147,9 @@ CREATE TABLE Mediciones (
 );
 
 -- Indices para optimizar consultas de seguimiento
-CREATE INDEX idx_ingestas_paciente ON Registros_Ingesta(id_paciente);
-CREATE INDEX idx_ingestas_fecha ON Registros_Ingesta(fecha_hora_consumo);
+-- Consulta diaria de ingestas: WHERE id_paciente = ? AND fecha_hora_consumo >= ? AND < ?
+CREATE INDEX idx_ingestas_paciente_fecha ON Registros_Ingesta(id_paciente, fecha_hora_consumo);
+CREATE INDEX idx_alimentos_nombre ON Alimentos (lower(nombre_alimento));
 CREATE INDEX idx_planes_relacion ON Planes_Nutricionales(id_relacion);
 CREATE INDEX idx_rel_nutricionista ON Relacion_Nutricionista_Paciente(id_nutricionista);
 CREATE INDEX idx_mediciones_paciente ON Mediciones(id_paciente);
