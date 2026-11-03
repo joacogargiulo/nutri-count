@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 export const USER_KEY = 'nutricount_user';
 export const TOKEN_KEY = 'nutricount_token';
 

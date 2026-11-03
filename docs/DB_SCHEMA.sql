@@ -5,7 +5,7 @@
 -- ==========================================================
 
 -- Reinicia el esquema por completo (re-ejecutable de punta a punta)
-DROP TABLE IF EXISTS Registros_Ingesta, Mediciones, Planes_Nutricionales, Tipos_Comida,
+DROP TABLE IF EXISTS Registros_Ingesta, Planes_Nutricionales, Tipos_Comida,
     Estados_Plan, Alimentos, Relacion_Nutricionista_Paciente, Relacion_Rol_Usuario,
     Usuarios, Personas, Roles CASCADE;
 
@@ -32,16 +32,14 @@ CREATE TABLE Personas (
 -- 3. Tabla de Usuarios
 CREATE TABLE Usuarios (
     id_usuario SERIAL PRIMARY KEY,
-    nombre_usuario VARCHAR(100) UNIQUE NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     hash_contrasena VARCHAR(255) NOT NULL,
     id_persona INTEGER NOT NULL UNIQUE REFERENCES Personas(id_persona) ON DELETE CASCADE, -- relacion 1 a 1
     fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Unicidad sin distinguir mayusculas: respalda a nivel BD la validacion de la API (evita carreras entre dos registros simultaneos)
+-- Email unico sin distinguir mayusculas: respalda a nivel BD la validacion de la API (evita carreras entre dos registros simultaneos)
 CREATE UNIQUE INDEX uq_usuarios_email_ci ON Usuarios (lower(email));
-CREATE UNIQUE INDEX uq_usuarios_nombre_usuario_ci ON Usuarios (lower(nombre_usuario));
 
 -- 4. Relacion Rol Usuario (Muchos a Muchos, PK compuesta)
 CREATE TABLE Relacion_Rol_Usuario (
@@ -83,16 +81,13 @@ CREATE TABLE Alimentos (
 -- 7. Tabla de Estados de Plan
 CREATE TABLE Estados_Plan (
     id_estado SERIAL PRIMARY KEY,
-    nombre_estado VARCHAR(50) NOT NULL
+    nombre_estado VARCHAR(50) NOT NULL UNIQUE
 );
 
 -- Valores fijos: deben coincidir con el enum EstadoPlan de src/types.ts
 INSERT INTO Estados_Plan (id_estado, nombre_estado) VALUES
 (1, 'Activo'),
-(2, 'Pausado'),
-(3, 'Cancelado'),
-(4, 'Completado'),
-(5, 'Vencido');
+(2, 'Cancelado');
 
 -- 8. Tabla de Tipos de Comida
 CREATE TABLE Tipos_Comida (
@@ -133,17 +128,7 @@ CREATE TABLE Registros_Ingesta (
     id_alimento INTEGER NOT NULL REFERENCES Alimentos(id_alimento) ON DELETE RESTRICT,
     cantidad NUMERIC(8,2) NOT NULL CHECK (cantidad > 0), -- en gramos o unidad correspondiente
     id_tipo_comida INTEGER NOT NULL REFERENCES Tipos_Comida(id_tipo_comida) ON DELETE RESTRICT,
-    fecha_hora_consumo TIMESTAMPTZ NOT NULL DEFAULT now(),
-    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- 11. Tabla de Mediciones (historial de peso/altura del paciente)
-CREATE TABLE Mediciones (
-    id_medicion SERIAL PRIMARY KEY,
-    id_paciente INTEGER NOT NULL REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
-    peso_kg DECIMAL(5,2),
-    altura_cm DECIMAL(5,2),
-    fecha_medicion DATE NOT NULL DEFAULT CURRENT_DATE
+    fecha_hora_consumo TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Indices para optimizar consultas de seguimiento
@@ -151,5 +136,3 @@ CREATE TABLE Mediciones (
 CREATE INDEX idx_ingestas_paciente_fecha ON Registros_Ingesta(id_paciente, fecha_hora_consumo);
 CREATE INDEX idx_alimentos_nombre ON Alimentos (lower(nombre_alimento));
 CREATE INDEX idx_planes_relacion ON Planes_Nutricionales(id_relacion);
-CREATE INDEX idx_rel_nutricionista ON Relacion_Nutricionista_Paciente(id_nutricionista);
-CREATE INDEX idx_mediciones_paciente ON Mediciones(id_paciente);

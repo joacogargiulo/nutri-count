@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import {
@@ -11,7 +6,7 @@ import {
 } from '../types';
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabaseKey = process.env.SUPABASE_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error('Faltan SUPABASE_URL y/o SUPABASE_KEY: configurarlas en .env (local) o en las variables de entorno del hosting.');
@@ -61,7 +56,7 @@ export const db = {
     const data: any = must(await supabase
       .from('usuarios')
       .select(`
-        id_usuario, nombre_usuario, email, hash_contrasena, id_persona,
+        id_usuario, email, hash_contrasena, id_persona,
         personas (nombre, apellido, genero, fecha_nacimiento),
         relacion_rol_usuario (id_rol, roles (nombre_rol))
       `)
@@ -76,7 +71,6 @@ export const db = {
 
     return {
       id_usuario: data.id_usuario,
-      nombre_usuario: data.nombre_usuario,
       email: data.email,
       id_persona: data.id_persona,
       persona: mapPersona(data.id_persona, one(data.personas)),
@@ -90,15 +84,11 @@ export const db = {
     email: string,
     pass: string,
     role: UserRole,
-    nombre_usuario: string,
     genero: string,
     fecha_nacimiento: string
   ): Promise<{ success: boolean; error?: string; user?: Usuario }> {
     const byEmail = must(await supabase.from('usuarios').select('id_usuario').eq('email', email).maybeSingle(), 'register/email');
     if (byEmail) return { success: false, error: 'Ese email ya está registrado' };
-
-    const byName = must(await supabase.from('usuarios').select('id_usuario').ilike('nombre_usuario', nombre_usuario).maybeSingle(), 'register/username');
-    if (byName) return { success: false, error: 'Ese nombre de usuario ya está en uso' };
 
     const hash_contrasena = await bcrypt.hash(pass, 10);
 
@@ -107,7 +97,7 @@ export const db = {
 
     // Sin transaccion en PostgREST: si falla un paso posterior se deshacen los anteriores.
     const usuarioRes = await supabase.from('usuarios')
-      .insert([{ nombre_usuario, email, hash_contrasena, id_persona: persona.id_persona }]).select().single();
+      .insert([{ email, hash_contrasena, id_persona: persona.id_persona }]).select().single();
     if (usuarioRes.error || !usuarioRes.data) {
       await supabase.from('personas').delete().eq('id_persona', persona.id_persona);
       console.error('[DB] register/usuario:', usuarioRes.error?.message);
@@ -128,7 +118,6 @@ export const db = {
       success: true,
       user: {
         id_usuario: usuario.id_usuario,
-        nombre_usuario,
         email,
         id_persona: persona.id_persona,
         persona: mapPersona(persona.id_persona, persona),
@@ -163,7 +152,7 @@ export const db = {
       .select(`
         id_paciente,
         usuarios!id_paciente (
-          id_usuario, nombre_usuario, email, id_persona,
+          id_usuario, email, id_persona,
           personas (nombre, apellido, genero, fecha_nacimiento)
         )
       `)
@@ -174,7 +163,6 @@ export const db = {
       const u = one<any>(d.usuarios);
       return {
         id_usuario: u.id_usuario,
-        nombre_usuario: u.nombre_usuario,
         email: u.email,
         id_persona: u.id_persona,
         rol: UserRole.PACIENTE,
@@ -187,7 +175,7 @@ export const db = {
     const user: any = must(await supabase
       .from('usuarios')
       .select(`
-        id_usuario, nombre_usuario, email, id_persona,
+        id_usuario, email, id_persona,
         personas (nombre, apellido, genero, fecha_nacimiento)
       `)
       .eq('email', email)
@@ -212,7 +200,6 @@ export const db = {
       success: true,
       patient: {
         id_usuario: user.id_usuario,
-        nombre_usuario: user.nombre_usuario,
         email: user.email,
         id_persona: user.id_persona,
         rol: UserRole.PACIENTE,
@@ -221,29 +208,31 @@ export const db = {
     };
   },
 
-  async unlinkPatient(nutricionistaId: number, patientId: number): Promise<{ success: boolean; error?: string }> {
-    const rel: any = must(await supabase
+  // Baja logica del vinculo activo. Sin nutricionistaId (la pide el paciente) se dan de baja todos sus vinculos activos.
+  async unlinkPatient(patientId: number, nutricionistaId?: number): Promise<{ success: boolean; error?: string }> {
+    let query = supabase
       .from('relacion_nutricionista_paciente')
       .update({ activo: false, fecha_desvinculacion: new Date().toISOString().split('T')[0] })
-      .eq('id_nutricionista', nutricionistaId)
       .eq('id_paciente', patientId)
-      .eq('activo', true)
-      .select()
-      .maybeSingle(), 'unlinkPatient/relacion');
+      .eq('activo', true);
+    if (nutricionistaId !== undefined) query = query.eq('id_nutricionista', nutricionistaId);
+    const rels: any[] = must(await query.select('id_relacion'), 'unlinkPatient/relacion') || [];
 
-    if (!rel) return { success: false, error: 'No existe un vínculo activo entre este nutricionista y este paciente' };
+    if (rels.length === 0) return { success: false, error: 'No existe un vínculo activo con un nutricionista' };
 
     // Al desvincular se cancela el plan activo de esa relacion
     must(await supabase
       .from('planes_nutricionales')
       .update({ id_estado: EstadoPlan.CANCELADO })
-      .eq('id_relacion', rel.id_relacion)
+      .in('id_relacion', rels.map(r => r.id_relacion))
       .eq('id_estado', EstadoPlan.ACTIVO), 'unlinkPatient/planes');
 
     return { success: true };
   },
 
+  // Plan vigente: estado Activo y fecha de fin no vencida (un plan vencido sigue Activo en la base, pero ya no se usa)
   async getPatientPlan(patientId: number): Promise<PlanNutricional | null> {
+    const hoy = new Date().toISOString().split('T')[0];
     const data: any[] = must(await supabase
       .from('planes_nutricionales')
       .select(`
@@ -253,6 +242,7 @@ export const db = {
       `)
       .eq('relacion_nutricionista_paciente.id_paciente', patientId)
       .eq('id_estado', EstadoPlan.ACTIVO)
+      .gte('fecha_fin', hoy)
       .order('fecha_inicio', { ascending: false })
       .limit(1), 'getPatientPlan') || [];
 
@@ -386,7 +376,6 @@ export const db = {
       .from('alimentos')
       .select('*')
       .ilike('nombre_alimento', nombre.replace(/[%_\\]/g, '\\$&'))
-      .neq('origen', 'Personalizado')
       .limit(1), 'getAlimentoByName') as Alimento[];
     return data?.[0] || null;
   },
@@ -397,8 +386,7 @@ export const db = {
       .select('*')
       .order('nombre_alimento', { ascending: true })
       .range(0, 4999), 'getAlimentos') as Alimento[];
-    // Los 'Personalizado' (creados al vuelo desde un plato guardado) no van al catalogo compartido
-    return (data || []).filter(a => a.origen !== 'Personalizado');
+    return data || [];
   },
 
   async addAlimento(al: Omit<Alimento, 'id_alimento'>): Promise<Alimento> {

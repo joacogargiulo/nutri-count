@@ -1,15 +1,10 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { UserRole } from '../types';
 
 // Token firmado tipo JWT simplificado: base64url(payload).base64url(HMAC-SHA256).
 // El secreto sale de AUTH_SECRET; si no esta definido se deriva de SUPABASE_KEY (ya requerida).
-const SECRET = process.env.AUTH_SECRET || `nutricount:${process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || ''}`;
+const SECRET = process.env.AUTH_SECRET || `nutricount:${process.env.SUPABASE_KEY || ''}`;
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface AuthPayload {

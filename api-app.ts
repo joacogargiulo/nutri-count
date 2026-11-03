@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 // Express app con las rutas /api/*, sin app.listen() ni middlewares de Vite/estaticos.
 // La usa tanto server.ts (desarrollo local / hosting Node tradicional) como
 // netlify/functions/api.ts (produccion en Netlify, via serverless-http).
@@ -19,7 +14,6 @@ app.use(express.json());
 // ==================== HELPERS ====================
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const GENEROS = ['Masculino', 'Femenino', 'Otro', 'No especificado'];
 
@@ -86,11 +80,11 @@ app.post('/api/auth/login', route(async (req, res) => {
 }));
 
 app.post('/api/auth/register', route(async (req, res) => {
-  const { nombre, apellido, password, rol, nombre_usuario, fecha_nacimiento, genero } = req.body || {};
+  const { nombre, apellido, password, rol, fecha_nacimiento, genero } = req.body || {};
   const email = normalizeEmail(req.body?.email);
 
-  if (![nombre, apellido, nombre_usuario, fecha_nacimiento, genero, password].every(v => typeof v === 'string' && v.trim()) || !email) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios para el registro (nombre, apellido, usuario, email, contraseña, fecha de nacimiento y género)' });
+  if (![nombre, apellido, fecha_nacimiento, genero, password].every(v => typeof v === 'string' && v.trim()) || !email) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios para el registro (nombre, apellido, email, contraseña, fecha de nacimiento y género)' });
   }
   if (rol !== UserRole.NUTRICIONISTA && rol !== UserRole.PACIENTE) {
     return res.status(400).json({ error: 'El rol especificado es inválido' });
@@ -100,9 +94,6 @@ app.post('/api/auth/register', route(async (req, res) => {
   }
   if (password.length < 8 || password.length > 72 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres e incluir letras y números' });
-  }
-  if (!USERNAME_RE.test(nombre_usuario.trim())) {
-    return res.status(400).json({ error: 'El nombre de usuario debe tener 3 a 30 caracteres: letras, números, punto, guion o guion bajo' });
   }
   if (nombre.trim().length > 100 || apellido.trim().length > 100) {
     return res.status(400).json({ error: 'Nombre y apellido no pueden superar los 100 caracteres' });
@@ -114,7 +105,7 @@ app.post('/api/auth/register', route(async (req, res) => {
     return res.status(400).json({ error: 'El género indicado no es válido' });
   }
 
-  const result = await db.register(nombre.trim(), apellido.trim(), email, password, rol, nombre_usuario.trim(), genero, fecha_nacimiento);
+  const result = await db.register(nombre.trim(), apellido.trim(), email, password, rol, genero, fecha_nacimiento);
   if (!result.success || !result.user) {
     const duplicate = /ya est/.test(result.error || '');
     return res.status(duplicate ? 409 : 500).json({ error: result.error });
@@ -148,12 +139,16 @@ app.post('/api/patients/link', route(async (req, res) => {
   res.json({ patient: result.patient });
 }));
 
-// Dar de baja un vinculo: lo puede hacer el nutricionista o el propio paciente
+// Dar de baja un vinculo: el nutricionista indica el paciente; el paciente se da de baja de su nutricionista
 app.post('/api/patients/unlink', route(async (req, res) => {
-  const other = toId(isNutri(req) ? req.body?.patientId : req.body?.nutricionistaId);
-  if (!other) return res.status(400).json({ error: 'Faltan parámetros requeridos' });
-  const [nutricionistaId, patientId] = isNutri(req) ? [req.auth!.id, other] : [other, req.auth!.id];
-  const result = await db.unlinkPatient(nutricionistaId, patientId);
+  let result;
+  if (isNutri(req)) {
+    const patientId = toId(req.body?.patientId);
+    if (!patientId) return res.status(400).json({ error: 'Falta ID de paciente' });
+    result = await db.unlinkPatient(patientId, req.auth!.id);
+  } else {
+    result = await db.unlinkPatient(req.auth!.id);
+  }
   if (!result.success) return res.status(404).json({ error: result.error });
   res.json({ success: true });
 }));
@@ -277,15 +272,13 @@ app.post('/api/alimentos', route(async (req, res) => {
   if (!isNum(medida_cantidad, 0, 100000, false) || typeof medida_unidad !== 'string' || !medida_unidad.trim() || medida_unidad.length > 20) {
     return res.status(400).json({ error: 'La medida del alimento no es válida' });
   }
-  // Los alimentos de Open Food Facts solo se crean desde /api/barcode
-  const origen = b.origen === 'Personalizado' ? 'Personalizado' : 'Local';
-
-  if (origen === 'Local' && (await db.getAlimentoByName(nombre))) {
+  if (await db.getAlimentoByName(nombre)) {
     return res.status(409).json({ error: 'Ya existe un alimento con ese nombre en el catálogo' });
   }
+  // Los alimentos de Open Food Facts solo se crean desde /api/barcode
   const alimento = await db.addAlimento({
     nombre_alimento: nombre, calorias, proteinas, carbohidratos, grasas,
-    medida_cantidad, medida_unidad: medida_unidad.trim(), origen,
+    medida_cantidad, medida_unidad: medida_unidad.trim(), origen: 'Local',
   });
   res.json({ alimento });
 }));

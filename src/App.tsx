@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from 'react';
 import { Usuario } from './types';
 import { USER_KEY, TOKEN_KEY } from './api';
@@ -53,17 +48,16 @@ export default function App() {
           {/* Main Workspace Frame container */}
           <main className="flex-1 bg-neutral-950">
             {user.rol === 'Nutricionista' ? (
-              <DashboardNutri user={user} />
+              <DashboardNutri />
             ) : (
               <DashboardPaciente user={user} />
             )}
           </main>
           
-          {/* Dynamic humble corporate info-bar as requested by anti-slop guidelines */}
           <footer className="bg-neutral-950 border-t border-neutral-900 py-4 mt-auto">
             <div className="max-w-7xl mx-auto px-4 text-center">
               <p className="text-[11px] text-neutral-500 font-medium">
-                &copy; 2026 Nutri Count &bull; Plataforma Premium de Gestión Nutricional Integrada
+                Nutri Count &bull; Taller Integrador III &bull; 2026
               </p>
             </div>
           </footer>

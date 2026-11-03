@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from 'react';
 import { apiFetch, ingestasUrl, todayLocal } from '../api';
 import { 
@@ -10,120 +5,10 @@ import {
   ChevronRight, ArrowLeft, Check, HelpCircle 
 } from 'lucide-react';
 import { Usuario, PlanNutricional, RegistroIngesta } from '../types';
+import { getMondayOfDate, formatLocalDate, semaforo, Semaforo, SEMAFORO_LABEL, SEMAFORO_THEME } from '../calendario';
 
-// Helper functions for week carousel and compliance coloring
-export const getMondayOfDate = (d: Date): Date => {
-  const day = d.getDay();
-  // If Sunday (0), we go back 6 days. Otherwise subtraction is (day - 1).
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.getFullYear(), d.getMonth(), diff);
-};
-
-export const formatLocalDate = (d: Date): string => {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-};
-
-export const getCalorieStatusTheme = (pct: number, hasCalories: boolean) => {
-  if (!hasCalories || pct === 0) {
-    return {
-      bg: "bg-neutral-950",
-      text: "text-neutral-400",
-      border: "border-neutral-850/60",
-      dot: "bg-neutral-800",
-      bgHover: "hover:bg-neutral-900 hover:border-neutral-700",
-      plainBg: "bg-neutral-850",
-      textColor: "text-neutral-400"
-    };
-  }
-
-  // Under target: 0% is Red -> 100% is Green
-  if (pct < 100) {
-    if (pct < 25) {
-      return {
-        bg: "bg-red-955/45",
-        text: "text-red-400",
-        border: "border-red-500/40",
-        dot: "bg-red-500",
-        bgHover: "hover:bg-red-900/35",
-        plainBg: "bg-red-500",
-        textColor: "text-red-400"
-      };
-    } else if (pct < 55) {
-      return {
-        bg: "bg-orange-955/45",
-        text: "text-orange-400",
-        border: "border-orange-500/45",
-        dot: "bg-orange-500",
-        bgHover: "hover:bg-orange-900/35",
-        plainBg: "bg-orange-500",
-        textColor: "text-orange-455"
-      };
-    } else if (pct < 85) {
-      return {
-        bg: "bg-amber-955/45",
-        text: "text-amber-400",
-        border: "border-amber-500/45",
-        dot: "bg-amber-400",
-        bgHover: "hover:bg-amber-900/35",
-        plainBg: "bg-amber-400",
-        textColor: "text-amber-400"
-      };
-    } else {
-      return {
-        bg: "bg-emerald-955/45",
-        text: "text-emerald-400",
-        border: "border-emerald-500/45",
-        dot: "bg-emerald-500",
-        bgHover: "hover:bg-emerald-900/35",
-        plainBg: "bg-emerald-500",
-        textColor: "text-emerald-400"
-      };
-    }
-  } 
-  // Over target: back down to Red
-  else {
-    if (pct <= 108) {
-      return {
-        bg: "bg-lime-955/45",
-        text: "text-lime-400",
-        border: "border-lime-500/45",
-        dot: "bg-lime-500",
-        bgHover: "hover:bg-lime-900/35",
-        plainBg: "bg-lime-500",
-        textColor: "text-lime-455"
-      };
-    } else if (pct <= 120) {
-      return {
-        bg: "bg-orange-955/45",
-        text: "text-orange-400",
-        border: "border-orange-500/45",
-        dot: "bg-orange-550",
-        bgHover: "hover:bg-orange-900/35",
-        plainBg: "bg-orange-550",
-        textColor: "text-orange-455"
-      };
-    } else {
-      return {
-        bg: "bg-rose-955/45",
-        text: "text-rose-400",
-        border: "border-rose-500/45",
-        dot: "bg-rose-500",
-        bgHover: "hover:bg-rose-900/35",
-        plainBg: "bg-rose-550",
-        textColor: "text-rose-455"
-      };
-    }
-  }
-};
-
-interface DashboardNutriProps {
-  user: Usuario;
-}
-
-export default function DashboardNutri({ user }: DashboardNutriProps) {
+// El nutricionista se identifica en la API por el token de sesion: no hace falta pasarle el usuario.
+export default function DashboardNutri() {
   const [patients, setPatients] = useState<Usuario[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Usuario | null>(null);
   
@@ -220,7 +105,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
         datesToFetch.push(monitoredDate);
       }
 
-      const currentPatientGoal = activePlan ? activePlan.calorias_objetivo : 2000;
+      const currentPatientGoal = activePlan ? activePlan.calorias_objetivo : 0;
 
       const results = await Promise.all(
         datesToFetch.map(async (dStr) => {
@@ -263,7 +148,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
   }, [selectedPatient, carouselWeekStart, activePlan, monitoredDate, isMobile]);
 
   // Patients status mapping for the "Semaforos" (Traffic Light indicators)
-  const [patientStatus, setPatientStatus] = useState<Record<string, { color: 'green' | 'yellow' | 'red' | 'gray', label: string, caloriesCount: number, goal: number }>>({});
+  const [patientStatus, setPatientStatus] = useState<Record<string, { color: Semaforo, caloriesCount: number, goal: number | null }>>({});
 
   useEffect(() => {
     fetchPatients();
@@ -271,7 +156,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
 
   const fetchPatients = async () => {
     try {
-      const response = await apiFetch(`/api/patients?nutricionistaId=${user.id_usuario}`);
+      const response = await apiFetch('/api/patients');
       if (response.ok) {
         const data = await response.json();
         setPatients(data.patients);
@@ -289,14 +174,10 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
     try {
       // Get plan
       const planRes = await apiFetch(`/api/plans?patientId=${patId}`);
-      let goal = 2000;
-      let planRecord: PlanNutricional | null = null;
+      let goal: number | null = null;
       if (planRes.ok) {
         const planData = await planRes.json();
-        if (planData.plan) {
-          planRecord = planData.plan;
-          goal = planRecord.calorias_objetivo;
-        }
+        if (planData.plan) goal = planData.plan.calorias_objetivo;
       }
 
       // Get today ingestas
@@ -315,27 +196,11 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
         }, 0);
       }
 
-      // Compute status
-      let color: 'green' | 'yellow' | 'red' | 'gray' = 'gray';
-      let label = 'Sin registros hoy';
-
-      if (totalCal > 0) {
-        const ratio = totalCal / goal;
-        if (ratio >= 0.85 && ratio <= 1.1) {
-          color = 'green';
-          label = 'En Meta (Cerca del 100%)';
-        } else if ((ratio >= 0.6 && ratio < 0.85) || (ratio > 1.1 && ratio <= 1.25)) {
-          color = 'yellow';
-          label = 'Desviación Leve';
-        } else {
-          color = 'red';
-          label = 'Fuera de Rango / Exceso';
-        }
-      }
+      const color = semaforo(goal ? (totalCal / goal) * 100 : null);
 
       setPatientStatus(prev => ({
         ...prev,
-        [patId]: { color, label, caloriesCount: Math.round(totalCal), goal }
+        [patId]: { color, caloriesCount: Math.round(totalCal), goal }
       }));
 
     } catch (err) {
@@ -408,10 +273,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
       const response = await apiFetch('/api/patients/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nutricionistaId: user.id_usuario,
-          email: linkEmail.trim()
-        })
+        body: JSON.stringify({ email: linkEmail.trim() })
       });
 
       const data = await response.json();
@@ -435,10 +297,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
       const response = await apiFetch('/api/patients/unlink', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nutricionistaId: user.id_usuario,
-          patientId
-        })
+        body: JSON.stringify({ patientId })
       });
       if (response.ok) {
         const data = await response.json();
@@ -510,7 +369,6 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patientId: selectedPatient.id_usuario,
-          nutricionistaId: user.id_usuario,
           planDetails: {
             calorias_objetivo: Number(calories),
             proteinas_objetivo: Number(proteins),
@@ -625,18 +483,12 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
                 <h4 className="text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2">Código de Colores de Control</h4>
                 <p className="text-xs text-neutral-500 mb-4 font-normal">El sistema utiliza alarmas visuales para informarle si el paciente cumplió su plan calórico diario:</p>
                 <div className="space-y-3 text-xs text-neutral-400">
-                  <div className="flex items-center space-x-2">
-                    <span className="h-3 w-3 bg-emerald-500 rounded-full inline-block"></span>
-                    <span><strong>Verde</strong>: Meta óptima diaria (+/- 10%)</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="h-3 w-3 bg-amber-400 rounded-full inline-block"></span>
-                    <span><strong>Amarillo</strong>: Desviación tolerable leve</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="h-3 w-3 bg-rose-500 rounded-full inline-block"></span>
-                    <span><strong>Rojo</strong>: Ingesta insuficiente o exceso excesivo</span>
-                  </div>
+                  {(['verde', 'amarillo', 'rojo', 'gris'] as const).map(s => (
+                    <div key={s} className="flex items-center space-x-2">
+                      <span className={`h-3 w-3 rounded-full inline-block ${SEMAFORO_THEME[s].dot}`}></span>
+                      <span><strong className="capitalize">{s}</strong>: {SEMAFORO_LABEL[s]}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -656,7 +508,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
               ) : (
                 <div className="divide-y divide-neutral-800/60">
                   {patients.map((pat) => {
-                    const status = patientStatus[pat.id_usuario] || { color: 'gray', label: 'Cargando...', caloriesCount: 0, goal: 2000 };
+                    const status = patientStatus[pat.id_usuario] || { color: 'gris' as Semaforo, caloriesCount: 0, goal: null };
                     
                     return (
                       <div 
@@ -667,12 +519,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
                       >
                         <div className="flex items-center space-x-3.5">
                           {/* Traffic light indicator status */}
-                          <div className={`h-4 w-4 rounded-full ring-4 ${
-                            status.color === 'green' ? 'bg-emerald-500 ring-emerald-900/50' :
-                            status.color === 'yellow' ? 'bg-amber-400 ring-amber-900/50' :
-                            status.color === 'red' ? 'bg-rose-500 ring-rose-900/50' :
-                            'bg-neutral-700 ring-neutral-900/40'
-                          }`} title={status.label} />
+                          <div className={`h-4 w-4 rounded-full ring-4 ring-neutral-900/50 ${SEMAFORO_THEME[status.color].dot}`} title={SEMAFORO_LABEL[status.color]} />
 
                           <div>
                             <p className="font-bold text-neutral-200 text-sm sm:text-base group-hover:text-emerald-400 transition-colors">
@@ -686,7 +533,7 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
                           <div className="text-right mr-2">
                             <span className="text-[10px] font-bold text-neutral-500 block uppercase tracking-wider">Metas Hoy</span>
                             <span className="text-xs font-semibold text-neutral-300 block">
-                              {status.caloriesCount} / {status.goal} kcal
+                              {status.goal ? `${status.caloriesCount} / ${status.goal} kcal` : 'Sin plan vigente'}
                             </span>
                           </div>
                           
@@ -966,18 +813,18 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
                         daysToRender.push(d);
                       }
 
-                      const patientGoal = activePlan ? activePlan.calorias_objetivo : 2000;
+                      const patientGoal = activePlan ? activePlan.calorias_objetivo : 0;
 
                       return daysToRender.map((dObj) => {
                         const dStr = formatLocalDate(dObj);
                         const statsData = weeklyStatus[dStr] || { calories: 0, target: patientGoal };
                         const isSelected = dStr === monitoredDate;
-                        
+
                         const dayCalories = statsData.calories;
-                        const pct = dayCalories > 0 ? Math.round((dayCalories / patientGoal) * 100) : 0;
-                        
-                        const calTheme = getCalorieStatusTheme(pct, dayCalories > 0);
-                        const bgClasses = `${calTheme.bg} ${calTheme.text} ${calTheme.border} ${calTheme.bgHover}`;
+                        const pct = patientGoal > 0 ? Math.round((dayCalories / patientGoal) * 100) : 0;
+
+                        const calTheme = SEMAFORO_THEME[semaforo(patientGoal > 0 ? pct : null)];
+                        const bgClasses = calTheme.cell;
                         const statusDot = calTheme.dot;
 
                         // Spanish labels
@@ -993,13 +840,13 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
                             className={`flex flex-col items-center py-2 rounded-xl border transition-all cursor-pointer relative ${bgClasses} ${
                               isSelected ? 'ring-2 ring-emerald-500 scale-[1.04] shadow-md z-10 font-bold bg-neutral-900/70 border-emerald-500/80 text-white' : ''
                             }`}
-                            title={`${dStr}: ${dayCalories} kcal (${pct}%)`}
+                            title={`${dStr}: ${dayCalories} kcal${patientGoal > 0 ? ` (${pct}%)` : ''}`}
                           >
                             <span className="text-[9px] uppercase font-bold tracking-wide opacity-75 mb-0.5">{label}</span>
                             <span className="text-xs font-black tracking-tight">{dayNum}</span>
                             {dayCalories > 0 ? (
                               <span className="text-[8px] font-mono font-black mt-1">
-                                {pct}%
+                                {patientGoal > 0 ? `${pct}%` : `${dayCalories} kcal`}
                               </span>
                             ) : (
                               <span className="text-[8px] text-neutral-655 mt-1 font-bold">-</span>
@@ -1027,22 +874,22 @@ export default function DashboardNutri({ user }: DashboardNutriProps) {
                 <div className="bg-neutral-900/30 p-4 rounded-xl border border-neutral-850 text-center">
                   <p className="text-[10px] font-bold text-neutral-500 uppercase">Calorías</p>
                   <p className="text-lg font-bold text-white mt-1">{stats.calories} kcal</p>
-                  <p className="text-[9px] text-neutral-500 mt-0.5">Meta: {calories} kcal</p>
+                  <p className="text-[9px] text-neutral-500 mt-0.5">{activePlan ? `Meta: ${activePlan.calorias_objetivo} kcal` : 'Sin plan vigente'}</p>
                 </div>
                 <div className="bg-neutral-900/30 p-4 rounded-xl border border-neutral-850 text-center">
                   <p className="text-[10px] font-bold text-emerald-450 uppercase">Proteínas</p>
                   <p className="text-lg font-bold text-white mt-1">{stats.proteins} g</p>
-                  <p className="text-[9px] text-neutral-500 mt-0.5">Meta: {proteins} g</p>
+                  <p className="text-[9px] text-neutral-500 mt-0.5">{activePlan ? `Meta: ${activePlan.proteinas_objetivo} g` : 'Sin plan vigente'}</p>
                 </div>
                 <div className="bg-neutral-900/30 p-4 rounded-xl border border-neutral-850 text-center">
                   <p className="text-[10px] font-bold text-sky-400 uppercase">Carbohidratos</p>
                   <p className="text-lg font-bold text-white mt-1">{stats.carbs} g</p>
-                  <p className="text-[9px] text-neutral-500 mt-0.5">Meta: {carbs} g</p>
+                  <p className="text-[9px] text-neutral-500 mt-0.5">{activePlan ? `Meta: ${activePlan.carbohidratos_objetivo} g` : 'Sin plan vigente'}</p>
                 </div>
                 <div className="bg-neutral-900/30 p-4 rounded-xl border border-neutral-850 text-center">
                   <p className="text-[10px] font-bold text-amber-400 uppercase">Grasas</p>
                   <p className="text-lg font-bold text-white mt-1">{stats.fats} g</p>
-                  <p className="text-[9px] text-neutral-500 mt-0.5">Meta: {fats} g</p>
+                  <p className="text-[9px] text-neutral-500 mt-0.5">{activePlan ? `Meta: ${activePlan.grasas_objetivo} g` : 'Sin plan vigente'}</p>
                 </div>
               </div>
 

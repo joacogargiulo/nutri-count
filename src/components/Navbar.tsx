@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
 import { LogOut, User, Activity, ShieldCheck } from 'lucide-react';
 import { Usuario } from '../types';
@@ -27,9 +22,6 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
             <div>
               <span className="text-xl font-bold tracking-tight text-white">
                 Nutri<span className="text-emerald-400">Count</span>
-              </span>
-              <span className="hidden sm:inline-block ml-2 text-[10px] bg-neutral-900 text-emerald-400 border border-neutral-800 px-2.5 py-0.5 rounded-full font-semibold">
-                Pro
               </span>
             </div>
           </div>
