@@ -1,13 +1,7 @@
 # Nutri Count
 
-Plataforma de gestión nutricional inteligente para nutricionistas y pacientes.
+Aplicación web para el seguimiento nutricional entre nutricionistas y pacientes (Taller Integrador III, 2026).
 
-## Ejecutar localmente
+Sistema en funcionamiento: https://nutri-count.netlify.app
 
-**Requisitos:** Node.js
-
-1. Instalar dependencias:
-   `npm install`
-2. Configurar las variables de entorno en `.env` (ver [.env.example](.env.example))
-3. Ejecutar la app:
-   `npm run dev`
+Para instalarlo y ejecutarlo en local, ver [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md).
